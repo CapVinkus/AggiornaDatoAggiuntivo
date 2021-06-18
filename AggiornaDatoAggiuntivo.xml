@@ -1,0 +1,213 @@
+<beans xmlns="http://www.springframework.org/schema/beans"
+	xmlns:batch="http://www.springframework.org/schema/batch"
+	xmlns:task="http://www.springframework.org/schema/task"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://www.springframework.org/schema/batch
+	http://www.springframework.org/schema/batch/spring-batch.xsd 
+	http://www.springframework.org/schema/beans 
+	http://www.springframework.org/schema/beans/spring-beans.xsd">
+
+	<description>
+		Questo job aggiorna i valori all'interno dei contratti di
+		 Asti e Biver svolti giornalmente per poi andare a prendere 
+		 un ID, estrarne il barcode e lavorarlo
+	</description>
+
+	<job id="aggiornaDatoAggiuntivo"
+		xmlns="http://www.springframework.org/schema/batch">
+		<step id="aggiornaDatiAstiIdStep">
+			<tasklet>
+				<chunk reader="dbReaderIdAsti"  processor="customProcessorAsti" writer="fileWriterIdAsti"
+					commit-interval="1"/>
+				<listeners>
+					<listener ref="countListener1" />
+				</listeners>
+			</tasklet>
+						<batch:next on="COMPLETED" to="sendMailOkAstiTaskletStep" />
+			<batch:next on="FAILED" to="sendMailKoTaskletStep" />
+		</step>
+		<step id="sendMailOkAstiTaskletStep" next ="aggiornaDatiBiverIdStep">
+			<tasklet ref="sendMailOkAstiTasklet" />
+		</step>
+		<step id="aggiornaDatiBiverIdStep">
+			<tasklet>
+				<chunk reader="dbReaderIdBiver" processor="customProcessorBiver" writer="fileWriterIdBiver"
+					commit-interval="1" />
+				<listeners>
+					<listener ref="countListener2" />
+				</listeners>
+			</tasklet>
+			<batch:next on="COMPLETED" to="sendMailOkBiverTaskletStep" />
+			<batch:next on="FAILED" to="sendMailKoTaskletStep" />
+		</step>
+		<step id="sendMailOkBiverTaskletStep">
+			<tasklet ref="sendMailOkBiverTasklet" />
+		</step>
+		<step id="sendMailKoTaskletStep">
+			<tasklet ref="sendMailKoTasklet" />
+		</step>
+	</job>
+
+	<!-- === DATABASE READER === -->
+
+	<bean id="dbReaderIdAsti"
+		class="org.springframework.batch.item.database.JdbcCursorItemReader"
+		scope="step">
+		<property name="dataSource" ref="DataSource" />
+		<property name="sql"
+			value="#{jobParameters['query.selectIdTrackAsti']}" />
+		<property name="rowMapper">
+			<bean class="org.springframework.jdbc.core.ColumnMapRowMapper" />
+		</property>
+	</bean>
+	
+		<bean id="dbReaderIdBiver"
+		class="org.springframework.batch.item.database.JdbcCursorItemReader"
+		scope="step">
+		<property name="dataSource" ref="DataSource" />
+		<property name="sql"
+			value="#{jobParameters['query.selectIdTrackBiver']}" />
+		<property name="rowMapper">
+			<bean class="org.springframework.jdbc.core.ColumnMapRowMapper" />
+		</property>
+	</bean>
+
+	<!-- === CUSTOM PROCESSOR === -->
+
+	<bean id="customProcessorAsti"
+		class="it.gepo.engine.CustomProcessorAsti"
+		scope="job">
+			<property name="dataSource" ref="DataSource" />
+	</bean>
+
+	
+	<bean id="customProcessorBiver"
+		class="it.gepo.engine.CustomProcessorBiver"
+		scope="job">
+			<property name="dataSource" ref="DataSource" />
+	</bean>
+
+	
+	<!-- === FILE WRITER === -->
+
+		<bean id="fileWriterIdAsti"
+		class="org.springframework.batch.item.file.FlatFileItemWriter"
+		scope="step">
+		<property name="resource"
+			value="file:#{jobParameters['dir.salviAsti']}/#{jobParameters['fileAstiIdTrack.name']}" />
+		<property name="lineAggregator">
+			<bean
+				class="org.springframework.batch.item.file.transform.DelimitedLineAggregator">
+				<property name="delimiter" value=";" />
+				<property name="fieldExtractor">
+					<bean
+						class="org.springframework.batch.item.file.transform.PassThroughFieldExtractor" />
+				</property>
+			</bean>
+		</property>
+	</bean>
+	
+		<bean id="fileWriterIdBiver"
+		class="org.springframework.batch.item.file.FlatFileItemWriter"
+		scope="step">
+		<property name="resource"
+			value="file:#{jobParameters['dir.salviAsti']}/#{jobParameters['fileBiverIdTrack.name']}" />
+		<property name="lineAggregator">
+			<bean
+				class="org.springframework.batch.item.file.transform.DelimitedLineAggregator">
+				<property name="delimiter" value=";" />
+				<property name="fieldExtractor">
+					<bean
+						class="org.springframework.batch.item.file.transform.PassThroughFieldExtractor" />
+				</property>
+			</bean>
+		</property>
+	</bean>
+		
+	<!-- === LISTENER === -->
+	
+	<bean id="countListener1"
+		class="it.gepo.engine.support.listener.CountStepExecutionListener"
+		scope="step" />
+
+	<bean id="countListener2"
+		class="it.gepo.engine.support.listener.CountStepExecutionListener"
+		scope="step" />
+
+	<!-- === MAILFAILED SENDER TASKLET === -->
+	
+	<bean id="sendMailKoTasklet"
+		class="it.gepo.engine.support.tasklet.SendMailTasklet" scope="step">
+		<property name="mailSender" ref="delegatedMailSender"></property>
+		<property name="from" value="#{jobParameters['mail.from']}"></property>
+		<property name="recipients"
+			value="#{jobParameters['mail.indirizzo']}"></property>
+		<property name="title"
+			value="#{jobParameters['mailKo.titolo']}"></property>
+		<property name="textGenerator">
+			<bean class="it.gepo.engine.support.utility.TextGenerator">
+				<property name="text"
+					value="Errore inserimento: \n #{jobExecutionContext['getSummary']}"></property>
+			</bean>
+		</property>
+		<property name="separateMails" value="true" />
+	</bean>
+
+	<!-- === MAILOK SENDER TASKLET === -->
+	
+	<bean id="sendMailOkAstiTasklet"
+		class="it.gepo.engine.support.tasklet.SendMailTasklet" scope="step">
+		<property name="mailSender" ref="delegatedMailSender"></property>
+		<property name="from" value="#{jobParameters['mail.from']}"></property>
+		<property name="recipients"
+			value="#{jobParameters['mail.indirizzo']}"></property>
+		<property name="title"
+			value="#{jobParameters['mailOk.titoloAsti']}"></property>
+		<property name="textGenerator">
+			<bean class="it.gepo.engine.support.utility.TextGenerator">
+				<property name="text"
+					value="sono stati aggiunti #{jobExecutionContext['getWriteCount']} valori"></property>
+			</bean>
+		</property>
+		<property name="separateMails" value="true" />
+	</bean>
+
+	<bean id="sendMailOkBiverTasklet"
+		class="it.gepo.engine.support.tasklet.SendMailTasklet" scope="step">
+		<property name="mailSender" ref="delegatedMailSender"></property>
+		<property name="from" value="#{jobParameters['mail.from']}"></property>
+		<property name="recipients"
+			value="#{jobParameters['mail.indirizzo']}"></property>
+		<property name="title"
+			value="#{jobParameters['mailOk.titoloBiver']}"></property>
+		<property name="textGenerator">
+			<bean class="it.gepo.engine.support.utility.TextGenerator">
+				<property name="text"
+					value="sono stati aggiunti #{jobExecutionContext['getWriteCount']} valori"></property>
+			</bean>
+		</property>
+		<property name="separateMails" value="true" />
+	</bean>
+
+	<!-- === MAIL SENDER === -->
+	
+	<bean id="delegatedMailSender"
+		class="org.springframework.mail.javamail.JavaMailSenderImpl"
+		scope="step">
+		<property name="host" value="#{jobParameters['mail.smtp']}" />
+	</bean>
+
+	<!-- === DATASOURCE === -->
+	
+	<bean id="DataSource"
+		class="org.apache.commons.dbcp.BasicDataSource" scope="job">
+		<property name="driverClassName"
+			value="#{jobParameters['conn.driver']}" />
+		<property name="url" value="#{jobParameters['conn.url']}" />
+		<property name="username"
+			value="#{jobParameters['conn.username']}" />
+		<property name="password"
+			value="#{jobParameters['conn.password']}" />
+	</bean>
+
+</beans>
