@@ -1,0 +1,61 @@
+{
+	"jobName": "aggiornaDatoAggiuntivo",
+	"jobXmlFile": "job-AggiornaDatoAggiuntivo.xml",
+	"jarName": "AggiornaDatoAggiuntivo-0.0.1.jar",
+	"params": {
+		"query.selectIdTrackBiver": {
+			"value": "select barcode from ctrk_tracking where id in (Select ID_TRACK from ctrk_stati_track where data_modifica >= SYSDATE - 3 and stato_new = 108)"
+		},
+		"query.selectIdTrackAsti": {
+			"value": "select barcode from ctrk_tracking where id in (Select ID_TRACK from ctrk_stati_track where data_modifica >= SYSDATE - 3 and stato_new = 46)"
+		},
+		"conn.driver": {
+			"value": "oracle.jdbc.driver.OracleDriver"
+		},
+		"conn.url": {
+			"value": "jdbc:oracle:thin:@gpocbp1o.ced.it:1522:gpocbp1o"
+		},
+		"conn.username": {
+			"value": "proc_cflow"
+		},
+		"conn.password": {
+			"value": "proc_cflow"
+		},
+		"dir.salviBiver": {
+			"value": "C:\\Users\\axc0824\\Desktop\\job\\aggiornaDati\\salvi\\biver\\"
+		},
+		"dir.salviAsti": {
+			"value": "C:\\Users\\axc0824\\Desktop\\job\\aggiornaDati\\salvi\\asti\\"
+		},
+		"mail.smtp": {
+			"value": "cgssrv01.gepo.intranet"
+		},
+		"mail.titoloAsti": {
+			"value": "Aggiorna Dato Aggiuntivo Asti"
+		},
+		"mail.titoloBiver": {
+			"value": "Aggiorna Dato Aggiuntivo Biver"
+		},
+		"mail.from": {
+			"value": "server@c-global.it"
+		},
+		"mail.indirizzo": {
+			"value": "mario.russo@c-global.it"
+		},
+		"mailOk.titoloBiver": {
+			"value": "Esito Aggiorna Dato Aggiuntivo Biver Ok"
+		},
+		"mailOk.titoloAsti": {
+			"value": "Esito Aggiorna Dato Aggiuntivo Asti Ok"
+		},
+		"mailKo.titolo": {
+			"value": "Errore Aggiorna Dato Aggiuntivo Ko"
+		},
+		"fileAstiIdTrack.name": {
+			"value": "IdTrackAsti.txt"
+		},
+		"fileBiverIdTrack.name": {
+			"value": "IdTrackBiver.txt"
+		}
+	}
+}
